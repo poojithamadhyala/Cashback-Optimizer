@@ -79,7 +79,8 @@ Two acceptance criteria from the spec are proven by dedicated tests:
 | Prisma schema | `prisma/schema.prisma` | Never applied to a DB — no Postgres/network here. Not run through `prisma generate`/`migrate`. |
 | Seed script | `prisma/seed.ts` | Never executed — no DB. Reuses `lib/fixtures/cards.ts` as the single source of truth so seed data and tested fixtures can't drift. |
 | Textract OCR provider | `lib/ocr/textract-provider.ts` | Real `AnalyzeExpense` call is **written but commented out** (no AWS network + SDK not installed). Throws if selected. |
-| Frontend pages | `app/(auth)/*`, `app/cards`, `app/receipts`, `app/dashboard`, `app/page.tsx` | **Written** against the real API contract, consuming the tested API client + UI formatters. **NOT rendered/verified in a browser** — no npm/Next in the build sandbox, so `next dev` could not run. Consistency was checked without a compiler: every `api.*` call and every DTO field the pages use is confirmed to exist. Needs a real `npm run dev` to verify rendering/interaction. |
+| Frontend pages | `app/(auth)/*`, `app/cards`, `app/receipts`, `app/dashboard`, `app/page.tsx` | **Written + restyled** (fintech-clean design system in `app/globals.css` + `components/ui/*`, persistent `AppNav`). Consume the tested API client + UI formatters. Confirmed rendering + end-to-end flows in a real browser via `npm run dev`. After the restyle, the API contract was re-verified: 14/14 `api.*` methods exist, all DTO fields referenced exist in `types.ts`, 106/106 tests pass. |
+| Design system | `app/globals.css`, `components/ui/*`, `components/AppNav.tsx` | Plain CSS + CSS variables (no new deps). Emerald = earned, red reserved for missed. |
 | `package.json` versions | `package.json` | Dependency versions are best-effort pins; **not verified to install/resolve** (no npm access). Adjust as needed. |
 
 **Architecture note:** auth and card CRUD follow a ports-and-adapters split —
