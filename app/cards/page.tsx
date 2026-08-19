@@ -2,10 +2,18 @@
 
 // Card management — Section 2 (Card Management). Browse the researched catalog,
 // add cards from it (never typing rates), list + remove your saved cards.
+// Data logic unchanged from pre-restyle — only markup/styles updated.
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/ui/errors";
 import type { CatalogCardDTO, UserCardDTO } from "@/lib/api/types";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Field";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Spinner, ErrorBanner } from "@/components/ui/Feedback";
+import styles from "./cards.module.css";
 
 export default function CardsPage() {
   const [catalog, setCatalog] = useState<CatalogCardDTO[]>([]);
@@ -51,27 +59,40 @@ export default function CardsPage() {
   const savedCatalogIds = new Set(myCards.map((c) => c.cardCatalogId));
 
   return (
-    <main style={styles.wrap}>
-      <h1>Cards</h1>
-      {error && <p role="alert" style={styles.error}>{error}</p>}
+    <main className="page stack">
+      <div>
+        <h1>Your cards</h1>
+        <p className="text-muted">
+          Add the cards you actually carry. We only use researched rates from the
+          catalog — you never type your own.
+        </p>
+      </div>
+
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       <section>
-        <h2>Your cards</h2>
+        <h2>Wallet</h2>
         {loading ? (
-          <p>Loading…</p>
+          <Spinner />
         ) : myCards.length === 0 ? (
-          <p>No cards yet. Add one from the catalog below.</p>
+          <EmptyState title="No cards yet">
+            Add one from the catalog below to start comparing rewards.
+          </EmptyState>
         ) : (
-          <ul style={styles.list}>
+          <div className={styles.grid}>
             {myCards.map((c) => (
-              <li key={c.id} style={styles.row}>
-                <span>{c.nickname ?? c.cardCatalogId}</span>
-                <button onClick={() => remove(c.id)} style={styles.smallBtn}>
+              <Card key={c.id} className={styles.walletCard}>
+                <div className={styles.walletTop}>
+                  <span className={styles.chip} aria-hidden="true" />
+                  <Badge tone="earned">Active</Badge>
+                </div>
+                <div className={styles.walletName}>{c.nickname ?? c.cardCatalogId}</div>
+                <Button variant="danger" size="sm" onClick={() => remove(c.id)}>
                   Remove
-                </button>
-              </li>
+                </Button>
+              </Card>
             ))}
-          </ul>
+          </div>
         )}
       </section>
 
@@ -82,47 +103,44 @@ export default function CardsPage() {
             e.preventDefault();
             loadCatalog(search);
           }}
-          style={styles.searchRow}
+          className={styles.searchRow}
         >
-          <input
+          <Input
             placeholder="Search issuer or product…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={styles.input}
           />
-          <button type="submit" style={styles.smallBtn}>Search</button>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
         </form>
-        <ul style={styles.list}>
+
+        <div className={styles.catalogList}>
           {catalog.map((c) => {
             const already = savedCatalogIds.has(c.id);
             return (
-              <li key={c.id} style={styles.row}>
-                <span>
-                  {c.issuer} {c.productName} <em style={styles.muted}>({c.network})</em>
-                </span>
-                <button
+              <Card key={c.id} className={styles.catalogRow}>
+                <div>
+                  <div className={styles.catalogName}>
+                    {c.issuer} {c.productName}
+                  </div>
+                  <div className={styles.catalogMeta}>
+                    <Badge tone="neutral">{c.network}</Badge>
+                  </div>
+                </div>
+                <Button
                   onClick={() => add(c.id)}
                   disabled={already}
-                  style={styles.smallBtn}
+                  variant={already ? "secondary" : "primary"}
+                  size="sm"
                 >
                   {already ? "Added" : "Add"}
-                </button>
-              </li>
+                </Button>
+              </Card>
             );
           })}
-        </ul>
+        </div>
       </section>
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { fontFamily: "system-ui", maxWidth: 720, margin: "32px auto", padding: 24 },
-  list: { listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 8 },
-  row: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: 8, border: "1px solid #eee", borderRadius: 6 },
-  searchRow: { display: "flex", gap: 8, marginBottom: 12 },
-  input: { padding: 8, fontSize: 15, border: "1px solid #ccc", borderRadius: 6, flex: 1 },
-  smallBtn: { padding: "6px 12px", borderRadius: 6, cursor: "pointer" },
-  muted: { color: "#666", fontStyle: "normal", fontSize: 13 },
-  error: { color: "#b00020" },
-};

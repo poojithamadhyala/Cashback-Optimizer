@@ -1,0 +1,53 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.walletCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: linear-gradient(135deg, #ffffff 0%, var(--color-accent-soft) 100%);
+}
+.walletTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chip {
+  width: 34px;
+  height: 24px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #d9b26a, #b8894a);
+  box-shadow: var(--shadow-xs);
+}
+.walletName {
+  font-weight: 700;
+  font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+
+.searchRow {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  max-width: 480px;
+}
+
+.catalogList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.catalogRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+}
+.catalogName {
+  font-weight: 600;
+}
+.catalogMeta {
+  margin-top: 6px;
+}

@@ -1,0 +1,48 @@
+.stat {
+  flex: 1 1 160px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  position: relative;
+  overflow: hidden;
+}
+/* Left accent bar keyed to tone */
+.stat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-border-strong);
+}
+.earned::before {
+  background: var(--color-earned);
+}
+.missed::before {
+  background: var(--color-missed);
+}
+.label {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+.value {
+  font-size: var(--text-2xl);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  margin-top: var(--space-1);
+}
+.earned .value {
+  color: var(--color-earned);
+}
+.missed .value {
+  color: var(--color-missed);
+}
+.sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+  margin-top: var(--space-1);
+}

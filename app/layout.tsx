@@ -1,7 +1,8 @@
-// Root layout — Section 8 (Next.js App Router). Frontend is scaffolded per
-// Section 7 build order step 8 (auth pages -> card mgmt -> upload/review -> dashboard).
-// Pages themselves are placeholders; the backend HTTP layer is stubbed (501).
+// Root layout — Section 8 (Next.js App Router). Loads the design system
+// (globals.css) and the persistent app nav (hidden on marketing/auth pages).
 import type { ReactNode } from "react";
+import "./globals.css";
+import { AppNav } from "@/components/AppNav";
 
 export const metadata = {
   title: "Loyalty & Cashback Optimizer",
@@ -11,7 +12,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AppNav />
+        {children}
+      </body>
     </html>
   );
 }

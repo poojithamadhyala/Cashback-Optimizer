@@ -2,18 +2,26 @@
 
 // Receipts list + upload — Section 2 (Receipt Upload & OCR). Uploading kicks off
 // OCR server-side; low-confidence/missing-field receipts land in "Needs review".
-import { useEffect, useState, useCallback } from "react";
+// Data logic unchanged from pre-restyle — only markup/styles.
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/ui/errors";
-import { statusLabel, categoryLabel, formatCurrency } from "@/lib/ui/format";
+import { categoryLabel, formatCurrency } from "@/lib/ui/format";
 import type { ReceiptDTO } from "@/lib/api/types";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Spinner, ErrorBanner } from "@/components/ui/Feedback";
+import styles from "./receipts.module.css";
 
 export default function ReceiptsPage() {
   const [receipts, setReceipts] = useState<ReceiptDTO[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const res = await api.listReceipts();
@@ -52,63 +60,93 @@ export default function ReceiptsPage() {
   const confirmed = receipts.filter((r) => r.status === "confirmed");
 
   return (
-    <main style={styles.wrap}>
-      <h1>Receipts</h1>
-      {error && <p role="alert" style={styles.error}>{error}</p>}
+    <main className="page stack">
+      <div>
+        <h1>Receipts</h1>
+        <p className="text-muted">
+          Upload a receipt photo. We extract merchant, date, and total — anything
+          uncertain lands in <strong>Needs review</strong> so nothing wrong enters
+          your totals.
+        </p>
+      </div>
 
-      <form onSubmit={onUpload} style={styles.uploadRow}>
-        <input type="file" name="image" accept="image/*" />
-        <button type="submit" disabled={uploading} style={styles.btn}>
-          {uploading ? "Uploading…" : "Upload receipt"}
-        </button>
-      </form>
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+
+      <Card>
+        <form onSubmit={onUpload} className={styles.uploadRow}>
+          <input
+            ref={fileRef}
+            type="file"
+            name="image"
+            accept="image/*"
+            className={styles.file}
+          />
+          <Button type="submit" disabled={uploading}>
+            {uploading ? "Uploading…" : "Upload receipt"}
+          </Button>
+        </form>
+      </Card>
 
       {loading ? (
-        <p>Loading…</p>
+        <Spinner label="Loading receipts…" />
       ) : (
         <>
-          <Section title={`Needs review (${needsReview.length})`} rows={needsReview} />
-          <Section title={`Confirmed (${confirmed.length})`} rows={confirmed} />
+          <Section
+            title="Needs review"
+            count={needsReview.length}
+            rows={needsReview}
+            emptyMsg="Nothing waiting — nice."
+          />
+          <Section
+            title="Confirmed"
+            count={confirmed.length}
+            rows={confirmed}
+            emptyMsg="No confirmed receipts yet."
+          />
         </>
       )}
     </main>
   );
 }
 
-function Section({ title, rows }: { title: string; rows: ReceiptDTO[] }) {
+function Section({
+  title,
+  count,
+  rows,
+  emptyMsg,
+}: {
+  title: string;
+  count: number;
+  rows: ReceiptDTO[];
+  emptyMsg: string;
+}) {
   return (
     <section>
-      <h2>{title}</h2>
+      <h2>
+        {title} <span className={styles.count}>{count}</span>
+      </h2>
       {rows.length === 0 ? (
-        <p style={styles.muted}>None.</p>
+        <p className="text-muted">{emptyMsg}</p>
       ) : (
-        <ul style={styles.list}>
+        <div className={styles.list}>
           {rows.map((r) => (
-            <li key={r.id} style={styles.item}>
-              <Link href={`/receipts/${r.id}`} style={styles.link}>
-                <strong>{r.merchantNormalized ?? r.merchantRaw ?? "Unknown merchant"}</strong>
-                <span style={styles.meta}>
-                  {categoryLabel(r.category)} ·{" "}
-                  {r.totalAmount != null ? formatCurrency(r.totalAmount) : "—"} ·{" "}
-                  {statusLabel(r.status)}
-                </span>
-              </Link>
-            </li>
+            <Link key={r.id} href={`/receipts/${r.id}`} className={styles.rowLink}>
+              <Card className={styles.row}>
+                <div>
+                  <div className={styles.merchant}>
+                    {r.merchantNormalized ?? r.merchantRaw ?? "Unknown merchant"}
+                  </div>
+                  <div className={styles.meta}>
+                    {categoryLabel(r.category)} ·{" "}
+                    {r.totalAmount != null ? formatCurrency(r.totalAmount) : "—"}
+                  </div>
+                </div>
+                <StatusBadge status={r.status} />
+              </Card>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </section>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { fontFamily: "system-ui", maxWidth: 720, margin: "32px auto", padding: 24 },
-  uploadRow: { display: "flex", gap: 8, alignItems: "center", margin: "16px 0 24px" },
-  btn: { padding: "8px 14px", borderRadius: 6, cursor: "pointer" },
-  list: { listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 8 },
-  item: { border: "1px solid #eee", borderRadius: 6 },
-  link: { display: "flex", flexDirection: "column", gap: 4, padding: 12, textDecoration: "none", color: "inherit" },
-  meta: { color: "#555", fontSize: 13 },
-  muted: { color: "#666" },
-  error: { color: "#b00020" },
-};

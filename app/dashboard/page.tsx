@@ -3,12 +3,19 @@
 // Dashboard — Section 2 (Dashboard). Total missed rewards over time, per-category
 // breakdown, and the "best card per category" cheat sheet from saved cards.
 // Only confirmed receipts contribute to totals (enforced server-side).
+// Data logic unchanged from pre-restyle — only markup/styles.
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/browser";
 import { errorMessage } from "@/lib/ui/errors";
 import { formatCurrency, formatPct, categoryLabel } from "@/lib/ui/format";
 import type { DashboardSummaryDTO, CheatsheetRowDTO } from "@/lib/api/types";
+import { StatCard } from "@/components/ui/StatCard";
+import { Table } from "@/components/ui/Table";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
+import { Spinner, ErrorBanner } from "@/components/ui/Feedback";
+import styles from "./dashboard.module.css";
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummaryDTO | null>(null);
@@ -26,51 +33,82 @@ export default function DashboardPage() {
     })();
   }, []);
 
-  if (loading) return <main style={styles.wrap}><p>Loading…</p></main>;
+  if (loading)
+    return (
+      <main className="page">
+        <Spinner label="Loading your dashboard…" />
+      </main>
+    );
 
   return (
-    <main style={styles.wrap}>
-      <h1>Dashboard</h1>
-      {error && <p role="alert" style={styles.error}>{error}</p>}
+    <main className="page stack">
+      <div>
+        <h1>Dashboard</h1>
+        <p className="text-muted">
+          Your rewards at a glance. Only confirmed receipts count toward totals.
+        </p>
+      </div>
+
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {summary && (
         <>
-          <section style={styles.cards}>
-            <Stat label="Total missed" value={formatCurrency(summary.totalMissed)} highlight />
-            <Stat label="Earned" value={formatCurrency(summary.totalActualCashback)} />
-            <Stat label="Best possible" value={formatCurrency(summary.totalOptimalCashback)} />
-            <Stat label="Receipts" value={String(summary.receiptCount)} />
+          <section className={styles.stats}>
+            <StatCard
+              label="Total missed"
+              value={formatCurrency(summary.totalMissed)}
+              tone="missed"
+              sub="Rewards left on the table"
+            />
+            <StatCard
+              label="Earned"
+              value={formatCurrency(summary.totalActualCashback)}
+              tone="earned"
+            />
+            <StatCard label="Best possible" value={formatCurrency(summary.totalOptimalCashback)} />
+            <StatCard label="Receipts" value={String(summary.receiptCount)} />
           </section>
 
           <section>
             <h2>Missed by category</h2>
             {summary.byCategory.length === 0 ? (
-              <p style={styles.muted}>
-                No confirmed receipts yet. <Link href="/receipts">Upload one →</Link>
-              </p>
+              <EmptyState
+                title="No confirmed receipts yet"
+                action={
+                  <Link href="/receipts">
+                    <Button>Upload a receipt</Button>
+                  </Link>
+                }
+              >
+                Once you confirm a receipt, your per-category breakdown shows up here.
+              </EmptyState>
             ) : (
-              <table style={styles.table}>
+              <Table>
                 <thead>
                   <tr>
-                    <th style={styles.th}>Category</th>
-                    <th style={styles.thR}>Missed</th>
-                    <th style={styles.thR}>Earned</th>
-                    <th style={styles.thR}>Best</th>
-                    <th style={styles.thR}>Count</th>
+                    <th>Category</th>
+                    <th className="num">Missed</th>
+                    <th className="num">Earned</th>
+                    <th className="num">Best</th>
+                    <th className="num">Count</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summary.byCategory.map((row) => (
                     <tr key={row.category}>
-                      <td style={styles.td}>{categoryLabel(row.category)}</td>
-                      <td style={styles.tdR}>{formatCurrency(row.missedAmount)}</td>
-                      <td style={styles.tdR}>{formatCurrency(row.actualCashback)}</td>
-                      <td style={styles.tdR}>{formatCurrency(row.optimalCashback)}</td>
-                      <td style={styles.tdR}>{row.count}</td>
+                      <td>{categoryLabel(row.category)}</td>
+                      <td className="num">
+                        <span className={row.missedAmount > 0 ? "text-missed" : undefined}>
+                          {formatCurrency(row.missedAmount)}
+                        </span>
+                      </td>
+                      <td className="num">{formatCurrency(row.actualCashback)}</td>
+                      <td className="num">{formatCurrency(row.optimalCashback)}</td>
+                      <td className="num">{row.count}</td>
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             )}
           </section>
         </>
@@ -79,55 +117,46 @@ export default function DashboardPage() {
       <section>
         <h2>Best card per category</h2>
         {cheatsheet.length === 0 ? (
-          <p style={styles.muted}>
-            Add cards to see your cheat sheet. <Link href="/cards">Manage cards →</Link>
-          </p>
+          <EmptyState
+            title="No cheat sheet yet"
+            action={
+              <Link href="/cards">
+                <Button variant="secondary">Manage cards</Button>
+              </Link>
+            }
+          >
+            Add the cards you carry and we&apos;ll show the best one to use in each
+            category.
+          </EmptyState>
         ) : (
-          <table style={styles.table}>
+          <Table>
             <thead>
               <tr>
-                <th style={styles.th}>Category</th>
-                <th style={styles.th}>Best card</th>
-                <th style={styles.thR}>Rate</th>
+                <th>Category</th>
+                <th>Best card</th>
+                <th className="num">Rate</th>
               </tr>
             </thead>
             <tbody>
               {cheatsheet.map((row) => (
                 <tr key={row.category}>
-                  <td style={styles.td}>{categoryLabel(row.category)}</td>
-                  <td style={styles.td}>{row.bestCardLabel ?? "—"}</td>
-                  <td style={styles.tdR}>{row.bestCardId ? formatPct(row.effectiveRatePct) : "—"}</td>
+                  <td>{categoryLabel(row.category)}</td>
+                  <td>{row.bestCardLabel ?? "—"}</td>
+                  <td className="num">
+                    {row.bestCardId ? (
+                      <span className="text-earned" style={{ fontWeight: 600 }}>
+                        {formatPct(row.effectiveRatePct)}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         )}
       </section>
     </main>
   );
 }
-
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div style={{ ...styles.stat, ...(highlight ? styles.statHighlight : {}) }}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{value}</div>
-    </div>
-  );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  wrap: { fontFamily: "system-ui", maxWidth: 820, margin: "32px auto", padding: 24 },
-  cards: { display: "flex", gap: 12, flexWrap: "wrap", margin: "16px 0 24px" },
-  stat: { flex: "1 1 140px", padding: 16, border: "1px solid #eee", borderRadius: 8 },
-  statHighlight: { borderColor: "#b00020", background: "#fff5f5" },
-  statLabel: { fontSize: 13, color: "#666" },
-  statValue: { fontSize: 24, fontWeight: 700 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 14 },
-  th: { textAlign: "left", borderBottom: "2px solid #eee", padding: "8px 6px" },
-  thR: { textAlign: "right", borderBottom: "2px solid #eee", padding: "8px 6px" },
-  td: { textAlign: "left", borderBottom: "1px solid #f0f0f0", padding: "8px 6px" },
-  tdR: { textAlign: "right", borderBottom: "1px solid #f0f0f0", padding: "8px 6px" },
-  muted: { color: "#666" },
-  error: { color: "#b00020" },
-};

@@ -1,0 +1,5 @@
+.stats {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
