@@ -38,8 +38,10 @@ are aspirational.
 | Quarter helper | `lib/receipts/quarter.ts` | ✅ Implemented + 1 test |
 | **Local-disk object storage** (real bytes to disk) | `lib/storage/local-disk.ts` | ✅ Implemented + 4 tests |
 | **SQLite DB integration tests** (real on-disk SQL) | `lib/receipts/sqlite-integration.test.ts` | ✅ **3 tests, all passing** |
+| **API client** (response handling, error mapping) | `lib/api/client.ts` | ✅ Implemented + 10 tests |
+| **UI formatters** (currency, pct, status, category) | `lib/ui/format.ts` | ✅ Implemented + 6 tests |
 
-**Total: 85 tests, 85 passing, 0 failing** — run and confirmed in this
+**Total: 101 tests, 101 passing, 0 failing** — run and confirmed in this
 environment via Node's built-in test runner (`node --experimental-strip-types
 --test`). Reproduce with `npm test` once dependencies are installed, or with
 the raw command in [Running the tests](#running-the-tests) with zero install.
@@ -76,7 +78,7 @@ Two acceptance criteria from the spec are proven by dedicated tests:
 | Prisma schema | `prisma/schema.prisma` | Never applied to a DB — no Postgres/network here. Not run through `prisma generate`/`migrate`. |
 | Seed script | `prisma/seed.ts` | Never executed — no DB. Reuses `lib/fixtures/cards.ts` as the single source of truth so seed data and tested fixtures can't drift. |
 | Textract OCR provider | `lib/ocr/textract-provider.ts` | Real `AnalyzeExpense` call is **written but commented out** (no AWS network + SDK not installed). Throws if selected. |
-| Frontend pages | `app/layout.tsx`, `app/page.tsx` | Placeholder shell only. |
+| Frontend pages | `app/(auth)/*`, `app/cards`, `app/receipts`, `app/dashboard`, `app/page.tsx` | **Written** against the real API contract, consuming the tested API client + UI formatters. **NOT rendered/verified in a browser** — no npm/Next in the build sandbox, so `next dev` could not run. Consistency was checked without a compiler: every `api.*` call and every DTO field the pages use is confirmed to exist. Needs a real `npm run dev` to verify rendering/interaction. |
 | `package.json` versions | `package.json` | Dependency versions are best-effort pins; **not verified to install/resolve** (no npm access). Adjust as needed. |
 
 **Architecture note:** auth and card CRUD follow a ports-and-adapters split —
@@ -229,8 +231,10 @@ Remaining:
    `STORAGE_PROVIDER=s3` before deploying. (Local-disk storage is done + tested.)
 2. **Rotating-category activation state** — `activatedRuleIds` is currently
    empty; source it from a user setting when rotating cards are added.
-3. **Frontend flow (step 8):** auth → card mgmt → upload/review → dashboard
-   (only placeholder pages exist today).
+3. **Verify the frontend in a browser** — the pages (auth, cards, receipts,
+   dashboard) are written against the API contract and their logic is tested,
+   but they have not been rendered. Run `npm install && npm run dev` and click
+   through the flows; wire any rough edges (loading states, redirects on 401).
 4. **Run the Postgres integration suite in your environment** — the tests +
    docker-compose + CI workflow exist (`integration/pg/`, `.github/workflows/ci.yml`);
    they run in CI on push. The offline sandbox proved the same contracts against
