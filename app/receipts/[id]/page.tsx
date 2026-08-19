@@ -99,6 +99,17 @@ export default function ReceiptDetailPage() {
         <p style={styles.meta}>OCR read: “{receipt.merchantRaw}”</p>
       )}
 
+      {receipt.imageUrl && (
+        // The image is served by GET /api/receipts/:id/image (ownership-checked),
+        // since the stored reference (local://<key>) isn't a browser-loadable URL.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/receipts/${receipt.id}/image`}
+          alt="Receipt"
+          style={styles.receiptImage}
+        />
+      )}
+
       {error && <p role="alert" style={styles.error}>{error}</p>}
 
       <form onSubmit={onConfirm} style={styles.form}>
@@ -174,6 +185,7 @@ const styles: Record<string, React.CSSProperties> = {
   deleteBtn: { padding: "8px 14px", borderRadius: 6, cursor: "pointer", color: "#b00020" },
   result: { marginTop: 24, padding: 16, border: "1px solid #eee", borderRadius: 8 },
   meta: { color: "#555", fontSize: 14, margin: "4px 0" },
+  receiptImage: { maxWidth: "100%", maxHeight: 320, borderRadius: 8, border: "1px solid #eee", margin: "8px 0" },
   missed: { color: "#b00020", fontWeight: 600 },
   ok: { color: "#0a7d33", fontWeight: 600 },
   error: { color: "#b00020" },

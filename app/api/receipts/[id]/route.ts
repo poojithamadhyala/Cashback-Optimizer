@@ -14,6 +14,7 @@ import {
   type ConfirmInput,
 } from "@/lib/receipts/service";
 import { buildReceiptDeps } from "@/lib/receipts/deps";
+import { toCalculationDTO } from "@/lib/api/serializers";
 
 export async function GET(
   _req: Request,
@@ -38,7 +39,9 @@ export async function PATCH(
     const { id } = await ctx.params;
     const body = (await parseJson(req)) as ConfirmInput | null;
     const result = await confirmReceipt(buildReceiptDeps(), principal, id, body ?? {});
-    return json(result);
+    // Strip the internal ruleVersionSnapshot from the calc so the wire payload
+    // matches ConfirmReceiptResponse exactly (see lib/api/serializers.ts).
+    return json({ receipt: result.receipt, calculation: toCalculationDTO(result.calculation) });
   } catch (err) {
     return errorResponse(err);
   }

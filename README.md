@@ -39,9 +39,10 @@ are aspirational.
 | **Local-disk object storage** (real bytes to disk) | `lib/storage/local-disk.ts` | ✅ Implemented + 4 tests |
 | **SQLite DB integration tests** (real on-disk SQL) | `lib/receipts/sqlite-integration.test.ts` | ✅ **3 tests, all passing** |
 | **API client** (response handling, error mapping) | `lib/api/client.ts` | ✅ Implemented + 10 tests |
+| **API serializers** (record → DTO, strips internal fields) | `lib/api/serializers.ts` | ✅ Implemented + 4 tests |
 | **UI formatters** (currency, pct, status, category) | `lib/ui/format.ts` | ✅ Implemented + 6 tests |
 
-**Total: 101 tests, 101 passing, 0 failing** — run and confirmed in this
+**Total: 106 tests, 106 passing, 0 failing** — run and confirmed in this
 environment via Node's built-in test runner (`node --experimental-strip-types
 --test`). Reproduce with `npm test` once dependencies are installed, or with
 the raw command in [Running the tests](#running-the-tests) with zero install.

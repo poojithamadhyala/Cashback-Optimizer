@@ -58,3 +58,12 @@ test("get rejects path-traversal keys", async () => {
   await assert.rejects(() => storage.get("../etc/passwd"), /invalid storage key/);
   await assert.rejects(() => storage.get("sub/dir.png"), /invalid storage key/);
 });
+
+test("parseStorageRef parses scheme + key, rejects junk", async () => {
+  const { parseStorageRef } = await import("./index.ts");
+  assert.deepEqual(parseStorageRef("local://abc.jpg"), { scheme: "local", key: "abc.jpg" });
+  assert.deepEqual(parseStorageRef("s3://bucket/obj.png"), { scheme: "s3", key: "bucket/obj.png" });
+  assert.equal(parseStorageRef(null), null);
+  assert.equal(parseStorageRef(""), null);
+  assert.equal(parseStorageRef("not-a-ref"), null);
+});
