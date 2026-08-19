@@ -30,3 +30,4 @@ yarn-error.log*
 
 # uploads (local receipt images in dev)
 /uploads
+COMMIT_MSG_TMP.txt
