@@ -1,46 +1,59 @@
 // GET    /receipts/:id  — fetch one receipt (owner only)
-// PATCH  /receipts/:id  — confirm/edit needs_review data (merchant, date, total,
-//                         category, userCardId). On confirm, run the rewards
-//                         engine and persist a reward_calculation snapshot.
+// PATCH  /receipts/:id  — confirm/edit needs_review data; on confirm, runs the
+//                         rewards engine and persists a calc snapshot.
 // DELETE /receipts/:id  — delete a receipt (owner only)
-// Section 5, governed by Section 2 (Receipt Upload & OCR + data isolation).
-//
-// EVERY handler MUST: requireUser, then assertOwnership(session, receipt.userId)
-// -> 403 on mismatch (Section 2: user A cannot access user B's receipt by ID).
-//
-// PATCH confirm flow (Section 2 Rewards Calculation, Section 3 versioning):
-//   - build card rules for the user's saved cards
-//   - call evaluatePurchase() from lib/rewards-engine.ts (deterministic, tested)
-//   - persist reward_calculation WITH ruleVersionSnapshot (frozen copy of rules)
-//   - flip status to "confirmed" so it counts toward dashboard totals
-import { notImplemented } from "@/lib/http";
+// Section 5, governed by Section 2 (Receipt Upload & OCR + data isolation),
+// Section 3 (versioning), Section 4.3 (engine). Wired to the tested service.
+import { errorResponse, json, parseJson } from "@/lib/http";
+import { requirePrincipal } from "@/lib/auth/authz";
+import { getCurrentPrincipal } from "@/lib/auth/current-user";
+import {
+  getReceipt,
+  confirmReceipt,
+  deleteReceipt,
+  type ConfirmInput,
+} from "@/lib/receipts/service";
+import { buildReceiptDeps } from "@/lib/receipts/deps";
 
 export async function GET(
   _req: Request,
-  _ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  return notImplemented(
-    "Section 2 (Receipt Upload & OCR, data isolation)",
-    "Auth-gate; load receipt; ownership check (403 on mismatch); return it."
-  );
+  try {
+    const principal = requirePrincipal(await getCurrentPrincipal());
+    const { id } = await ctx.params;
+    const receipt = await getReceipt(buildReceiptDeps(), principal, id);
+    return json({ receipt });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }
 
 export async function PATCH(
-  _req: Request,
-  _ctx: { params: Promise<{ id: string }> }
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  return notImplemented(
-    "Section 2 (Rewards Calculation), Section 3 (versioning), Section 4.3 (engine)",
-    "Auth-gate; ownership check; on confirm run evaluatePurchase() and store reward_calculation with ruleVersionSnapshot."
-  );
+  try {
+    const principal = requirePrincipal(await getCurrentPrincipal());
+    const { id } = await ctx.params;
+    const body = (await parseJson(req)) as ConfirmInput | null;
+    const result = await confirmReceipt(buildReceiptDeps(), principal, id, body ?? {});
+    return json(result);
+  } catch (err) {
+    return errorResponse(err);
+  }
 }
 
 export async function DELETE(
   _req: Request,
-  _ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  return notImplemented(
-    "Section 2 (data isolation)",
-    "Auth-gate; ownership check (403 on mismatch); delete receipt."
-  );
+  try {
+    const principal = requirePrincipal(await getCurrentPrincipal());
+    const { id } = await ctx.params;
+    await deleteReceipt(buildReceiptDeps(), principal, id);
+    return json({ ok: true });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

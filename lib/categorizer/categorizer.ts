@@ -56,6 +56,21 @@ const RULES: Rule[] = [
   { match: "PELOTON", category: "peloton" },
 ];
 
+/** The canonical spending categories, for dashboard cheat-sheet iteration etc. */
+export const ALL_CATEGORIES: Category[] = [
+  "us_supermarkets",
+  "online_groceries",
+  "us_gas_stations",
+  "gas_ev_charging",
+  "dining",
+  "us_online_retail",
+  "rideshare_lyft",
+  "chase_travel",
+  "citi_travel",
+  "vacation_rentals",
+  "peloton",
+];
+
 /** Normalize a raw merchant string: uppercase, collapse whitespace, strip store #. */
 export function normalizeMerchant(raw: string): string {
   return raw

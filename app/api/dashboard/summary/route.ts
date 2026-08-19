@@ -1,14 +1,18 @@
 // GET /dashboard/summary — Section 5, governed by Section 2 (Dashboard).
-// Totals: total missed rewards over time + per-category breakdown.
-// IMPORTANT: only CONFIRMED receipts count; needs_review receipts are excluded
-// from totals until the user confirms them (Section 2 acceptance criterion).
-// TODO: requireUser; aggregate reward_calculations joined to confirmed receipts
-// for the session user only.
-import { notImplemented } from "@/lib/http";
+// Totals: total missed + per-category breakdown, over CONFIRMED receipts only
+// (needs_review receipts have no calc row and are excluded structurally).
+import { errorResponse, json } from "@/lib/http";
+import { requirePrincipal } from "@/lib/auth/authz";
+import { getCurrentPrincipal } from "@/lib/auth/current-user";
+import { getSummary } from "@/lib/dashboard/service";
+import { prismaCalculationRepository } from "@/lib/receipts/prisma-repository";
 
 export async function GET(): Promise<Response> {
-  return notImplemented(
-    "Section 2 (Dashboard)",
-    "Auth-gate; aggregate missed + per-category over CONFIRMED receipts for session user."
-  );
+  try {
+    const principal = requirePrincipal(await getCurrentPrincipal());
+    const summary = await getSummary(prismaCalculationRepository, principal);
+    return json({ summary });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

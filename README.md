@@ -33,23 +33,42 @@ are aspirational.
 | **User auth service** (signup/login rules) | `lib/auth/user-service.ts` | ✅ Implemented + 5 tests |
 | **Input validation** | `lib/validation.ts` | ✅ Implemented + 8 tests |
 | **Card CRUD service** (ownership-enforced) | `lib/cards/service.ts` | ✅ Implemented + 7 tests |
+| **Receipt service** (OCR→needs_review→confirm→calc+snapshot) | `lib/receipts/service.ts` | ✅ Implemented + 10 tests |
+| **Dashboard aggregation** (confirmed-only + cheatsheet) | `lib/dashboard/service.ts` | ✅ Implemented + 2 tests |
+| Quarter helper | `lib/receipts/quarter.ts` | ✅ Implemented + 1 test |
 
-**Total: 65 tests, 65 passing, 0 failing** — run and confirmed in this
+**Total: 78 tests, 78 passing, 0 failing** — run and confirmed in this
 environment via Node's built-in test runner (`node --experimental-strip-types
 --test`). Reproduce with `npm test` once dependencies are installed, or with
 the raw command in [Running the tests](#running-the-tests) with zero install.
 
-> A real bug was caught by actually running these tests: the scrypt password
-> hash initially exceeded OpenSSL's default 32 MB `maxmem` and threw
-> `ERR_CRYPTO_INVALID_SCRYPT_PARAMS`. Fixed by passing an explicit `maxmem`
-> sized to the scrypt parameters (`lib/auth/password.ts`), then re-verified.
+Two acceptance criteria from the spec are proven by dedicated tests:
+- **needs_review exclusion (Section 2):** low OCR confidence → status
+  `needs_review` → the receipt has no calculation and is excluded from
+  dashboard totals (`lib/receipts/service.test.ts`, test "(A)").
+- **Rule versioning is adversarial (Section 6):** a receipt is confirmed and its
+  reward calculated; the underlying card rule's rate is then mutated (3% → 5%);
+  the previously-stored calculation is re-fetched and asserted **byte-for-byte
+  unchanged**, with the snapshot still holding the old 3% rate
+  (`lib/receipts/service.test.ts`, test "(B)"). This proves immunity to later
+  mutation, not merely that a snapshot field is populated.
+
+> Real bugs caught by actually running the tests (not hypothetical):
+> 1. scrypt exceeded OpenSSL's default 32 MB `maxmem` →
+>    `ERR_CRYPTO_INVALID_SCRYPT_PARAMS`; fixed with an explicit `maxmem`.
+> 2. Two classes used TypeScript *parameter properties*, which Node's
+>    type-stripping runtime rejects; converted to explicit field assignments.
+> 3. A pure helper (`quarterOf`) was initially placed in a module that
+>    transitively imports Prisma, so its test couldn't load offline; extracted
+>    to `lib/receipts/quarter.ts`.
 
 ### 🟡 Scaffolded — written but NOT executed/verified
 
 | Area | Files | Why not verified |
 |---|---|---|
 | Auth + card API routes | `app/api/auth/**`, `app/api/cards/**`, `app/api/users/me/cards/**` | **Now wired** to the tested cores, but the Prisma/cookie I/O runs only in the Next.js server runtime — not exercised by offline unit tests. The business rules they call ARE tested. |
-| Receipt + dashboard API routes | `app/api/receipts/**`, `app/api/dashboard/**` | Still return `501 Not Implemented` with spec pointers (next build steps). |
+| Receipt + dashboard API routes | `app/api/receipts/**`, `app/api/dashboard/**` | **Now wired** to the tested receipt/dashboard services (upload/list/get/confirm/delete, summary, cheatsheet). Prisma + storage I/O run only in the Next.js runtime; the business logic they call is unit-tested. Image bytes are read but object-storage persistence is a TODO (`imageUrl` currently null). |
+| Receipt/calc/card-rules Prisma adapters | `lib/receipts/prisma-*.ts` | Real query-mapping implementing the tested service ports; need a generated client + live DB. |
 | Prisma adapters | `lib/cards/prisma-repository.ts`, `lib/auth/prisma-user-repository.ts` | Real query-mapping code implementing the tested service ports; require a generated client + live DB (not runnable offline). |
 | Request/session bridge | `lib/auth/current-user.ts` | Cookie + clock wrapper around the tested `session.ts`; needs the Next.js runtime. |
 | Prisma schema | `prisma/schema.prisma` | Never applied to a DB — no Postgres/network here. Not run through `prisma generate`/`migrate`. |
@@ -113,16 +132,8 @@ Independently-testable modules, not one god route handler:
 With **zero dependencies installed** (as in the build sandbox), using Node ≥ 22:
 
 ```bash
-node --experimental-strip-types --test \
-  lib/rewards-engine.test.ts \
-  lib/ocr/route-receipt.test.ts \
-  lib/categorizer/categorizer.test.ts \
-  lib/auth/password.test.ts \
-  lib/auth/session.test.ts \
-  lib/auth/authz.test.ts \
-  lib/auth/user-service.test.ts \
-  lib/validation.test.ts \
-  lib/cards/service.test.ts
+# all suites (same as `npm test`)
+node --experimental-strip-types --test 'lib/**/*.test.ts'
 ```
 
 Or, after `npm install`:
@@ -153,16 +164,24 @@ implementation in `lib/ocr/textract-provider.ts` — to use AWS Textract.
 
 ## Suggested next steps (spec Section 7 build order)
 
-The engine (step 3) is done and tested. Remaining, in order:
+Done and tested (steps 1–7):
 
-1. Implement auth service + session cookies (`lib/auth.ts`, `app/api/auth/*`)
-2. Wire card catalog + user-card CRUD (`app/api/cards/*`, `app/api/users/me/cards/*`)
-3. Implement receipt upload → OCR → `needs_review` flow (`app/api/receipts`)
-4. On receipt confirm, call `evaluatePurchase()` and persist a
-   `reward_calculation` **with its rule snapshot**
-5. Dashboard aggregation (confirmed receipts only)
-6. Frontend flow: auth → card mgmt → upload/review → dashboard
+- [x] Rewards engine (step 3) — pure, deterministic, table-driven tests
+- [x] Auth service + session cookies (step 1) — `lib/auth/*`, `app/api/auth/*`
+- [x] Card catalog + user-card CRUD (step 2) — `app/api/cards/*`, `app/api/users/me/cards/*`
+- [x] Receipt upload → OCR → `needs_review` flow (step 4) — `lib/receipts/*`
+- [x] Rewards engine wired to confirmed receipts + rule snapshot (step 6)
+- [x] Dashboard aggregation, confirmed-only (steps 5/7)
 
-Add auth/authorization and data-versioning tests (Section 6) as those layers
-land — those require the DB and could not be written meaningfully against the
-stubs here.
+Remaining:
+
+1. **Object storage for receipt images** — `POST /receipts` reads the bytes but
+   `imageUrl` is currently null; wire S3/local storage.
+2. **Rotating-category activation state** — `activatedRuleIds` is currently
+   empty; source it from a user setting when rotating cards are added.
+3. **Frontend flow (step 8):** auth → card mgmt → upload/review → dashboard
+   (only placeholder pages exist today).
+4. **DB-level integration tests** — the service-layer versioning + authorization
+   guarantees are unit-tested with fakes; add a thin set of Prisma-backed
+   integration tests once a test database is available, to confirm the adapters
+   honor the same contracts.

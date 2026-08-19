@@ -14,8 +14,11 @@ import type { OcrProvider, OcrResult } from "./types.ts";
 
 export class MockOcrProvider implements OcrProvider {
   readonly name = "mock";
+  private readonly canned?: Partial<OcrResult>;
 
-  constructor(private readonly canned?: Partial<OcrResult>) {}
+  constructor(canned?: Partial<OcrResult>) {
+    this.canned = canned;
+  }
 
   async analyze(_image: Uint8Array, _mimeType: string): Promise<OcrResult> {
     // Default: everything null + 0 confidence => guaranteed needs_review.
