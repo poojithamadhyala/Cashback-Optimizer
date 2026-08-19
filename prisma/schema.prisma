@@ -1,0 +1,148 @@
+// Prisma schema — mirrors Section 3 (Data Model) of the v1 spec.
+//
+// Key design decision (Section 3): reward_calculations SNAPSHOTS the rule data
+// it used (ruleVersionSnapshot Json), so historical numbers stay trustworthy
+// even when catalog data is updated later. Calculations do NOT live-join
+// against current card state.
+//
+// Section 9 design implication is honored on CardRewardRule: `unit`
+// (cashback_pct | points_per_dollar) + nullable `pointValueCents`, rather than
+// assuming everything is a flat percentage.
+//
+// NOTE: This schema has NOT been applied to a database in this sandbox
+// (no Postgres / no network). Run `prisma migrate dev` in a networked env.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth & accounts (Section 2: Auth) --------------------------------------
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String // bcrypt/argon2 — NEVER plaintext (Section 2)
+  createdAt    DateTime @default(now())
+
+  userCards UserCard[]
+  receipts  Receipt[]
+
+  @@map("users")
+}
+
+// --- Researched catalog, shared across all users (Section 3) -----------------
+model CardCatalog {
+  id             String   @id @default(cuid())
+  issuer         String
+  productName    String
+  network        String
+  sourceUrl      String
+  lastVerifiedAt DateTime
+
+  rewardRules CardRewardRule[]
+  userCards   UserCard[]
+
+  @@map("card_catalog")
+}
+
+// Reward unit interpretation (Section 9 design implication).
+enum RewardUnit {
+  cashback_pct
+  points_per_dollar
+}
+
+// --- Versioned rules per catalog card (Section 3) ---------------------------
+model CardRewardRule {
+  id            String     @id @default(cuid())
+  cardCatalogId String
+  category      String // canonical spending category, or "*" for baseline
+  rate          Decimal    @db.Decimal(10, 4)
+  unit          RewardUnit @default(cashback_pct)
+  // Cents-per-point; required when unit = points_per_dollar (Section 9).
+  pointValueCents Int?
+  capAmount     Decimal?   @db.Decimal(12, 2) // nullable => no cap
+  isRotating    Boolean    @default(false)
+  quarter       String? // e.g. "2026-Q3", only for rotating rules
+  effectiveFrom DateTime?
+  effectiveTo   DateTime? // nullable => open-ended
+
+  cardCatalog CardCatalog @relation(fields: [cardCatalogId], references: [id], onDelete: Cascade)
+
+  @@index([cardCatalogId])
+  @@index([category])
+  @@map("card_reward_rules")
+}
+
+// --- A user's saved cards (Section 3) ---------------------------------------
+model UserCard {
+  id            String   @id @default(cuid())
+  userId        String
+  cardCatalogId String
+  nickname      String?
+  addedAt       DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardCatalog CardCatalog @relation(fields: [cardCatalogId], references: [id])
+
+  // Receipts that recorded this as the card actually used. onDelete: SetNull so
+  // removing a card does NOT delete receipts (Section 2: history preserved).
+  receipts Receipt[]
+
+  @@index([userId])
+  @@map("user_cards")
+}
+
+enum ReceiptStatus {
+  needs_review
+  confirmed
+}
+
+// --- Receipts (Section 3) ---------------------------------------------------
+model Receipt {
+  id                String        @id @default(cuid())
+  userId            String
+  merchantRaw       String?
+  merchantNormalized String?
+  category          String? // null => Uncategorized (Section 2: no silent guess)
+  date              DateTime?
+  totalAmount       Decimal?      @db.Decimal(12, 2)
+  ocrConfidence     Float?
+  status            ReceiptStatus @default(needs_review)
+  userCardId        String?
+  imageUrl          String?
+  ocrRawText        String?
+  createdAt         DateTime      @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userCard UserCard? @relation(fields: [userCardId], references: [id], onDelete: SetNull)
+
+  rewardCalculation RewardCalculation?
+
+  @@index([userId])
+  @@index([status])
+  @@map("receipts")
+}
+
+// --- Reward calculations (Section 3) ----------------------------------------
+// ruleVersionSnapshot stores the exact rule rows used, so editing/removing
+// catalog data later does NOT change this row (Section 6: data versioning test).
+model RewardCalculation {
+  id                 String   @id @default(cuid())
+  receiptId          String   @unique
+  actualRate         Decimal  @db.Decimal(10, 4)
+  actualCashback     Decimal  @db.Decimal(12, 2)
+  optimalUserCardId  String?
+  optimalRate        Decimal  @db.Decimal(10, 4)
+  optimalCashback    Decimal  @db.Decimal(12, 2)
+  missedAmount       Decimal  @db.Decimal(12, 2)
+  ruleVersionSnapshot Json
+  calculatedAt       DateTime @default(now())
+
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@map("reward_calculations")
+}
