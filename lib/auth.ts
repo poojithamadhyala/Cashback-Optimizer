@@ -1,54 +1,25 @@
 /**
- * Auth service scaffold — Section 4.4 / Section 2 (Auth & Accounts).
+ * Auth barrel — Section 4.4. Re-exports the implemented, unit-tested auth core.
  *
- * Isolated from business logic. Responsibilities when implemented:
- *  - hash passwords with bcrypt/argon2 (NEVER plaintext, never logged)
- *  - issue + verify expiring session JWTs (jose), read from an httpOnly cookie
- *  - requireUser(): resolve the authenticated user or 401
- *  - authorization helpers: assertOwnership(userId, resource.userId) -> 403
- *    (Section 2: user A must not read/edit user B's records by guessing IDs)
+ * The auth logic is now REAL and tested (not stubs):
+ *  - password hashing:  ./auth/password.ts        (scrypt via node:crypto)
+ *  - session tokens:    ./auth/session.ts          (HMAC-SHA256, expiry)
+ *  - authorization:     ./auth/authz.ts            (ownership guards -> 403/404)
+ *  - user service:      ./auth/user-service.ts     (signup/login rules)
+ *  - request bridge:    ./auth/current-user.ts     (cookie + clock; Next runtime)
  *
- * NOT IMPLEMENTED in this scaffold — signatures + contracts only.
+ * See lib/auth/*.test.ts for the executed unit tests.
  */
 
-export interface SessionUser {
-  id: string;
-  email: string;
-}
-
-/** Hash a plaintext password. TODO: bcrypt.hash(password, 12). */
-export async function hashPassword(_password: string): Promise<string> {
-  throw new Error("not implemented: hashPassword (Section 2 — use bcrypt/argon2)");
-}
-
-/** Verify a plaintext password against a stored hash. TODO: bcrypt.compare. */
-export async function verifyPassword(
-  _password: string,
-  _hash: string
-): Promise<boolean> {
-  throw new Error("not implemented: verifyPassword");
-}
-
-/** Issue a signed, expiring session token. TODO: jose SignJWT with AUTH_SESSION_TTL_SECONDS. */
-export async function issueSession(_user: SessionUser): Promise<string> {
-  throw new Error("not implemented: issueSession (Section 2 — sessions expire)");
-}
-
-/**
- * Resolve the current authenticated user from the request cookie, or null.
- * Every data-bearing route MUST call this (Section 2: auth required everywhere).
- */
-export async function getSessionUser(): Promise<SessionUser | null> {
-  throw new Error("not implemented: getSessionUser");
-}
-
-/**
- * Authorization guard. Ensures the accessing user owns the resource.
- * Section 2 acceptance: authorization check, not just authentication.
- */
-export function assertOwnership(currentUserId: string, resourceOwnerId: string): void {
-  if (currentUserId !== resourceOwnerId) {
-    // Route handlers translate this into a 403 (see lib/http.ts forbidden()).
-    throw new Error("forbidden: resource belongs to another user");
-  }
-}
+export { hashPassword, verifyPassword } from "./auth/password.ts";
+export { encodeSession, verifySession } from "./auth/session.ts";
+export type { SessionPayload, VerifyResult } from "./auth/session.ts";
+export { requirePrincipal, assertOwner } from "./auth/authz.ts";
+export type { Principal } from "./auth/authz.ts";
+export { signup, login } from "./auth/user-service.ts";
+export type { UserRepository, UserRecord, PublicUser } from "./auth/user-service.ts";
+export {
+  startSession,
+  endSession,
+  getCurrentPrincipal,
+} from "./auth/current-user.ts";

@@ -1,13 +1,19 @@
 // GET /cards/catalog?search= — Section 5, governed by Section 2 (Card Management).
-// Browse the researched, shared card catalog. Users add cards FROM this catalog;
-// they never type their own reward rates (Section 2).
-// TODO: requireUser; query CardCatalog (+ optional search filter); return
-// issuer/product/network + rules. See seed data in prisma/seed.ts (Section 9).
-import { notImplemented } from "@/lib/http";
+// Auth-gated browse of the researched, shared catalog. Users add cards FROM
+// this catalog (Section 2: they never type their own reward rates).
+import { errorResponse, json } from "@/lib/http";
+import { requirePrincipal } from "@/lib/auth/authz";
+import { getCurrentPrincipal } from "@/lib/auth/current-user";
+import { browseCatalog } from "@/lib/cards/service";
+import { prismaCardRepository } from "@/lib/cards/prisma-repository";
 
-export async function GET(): Promise<Response> {
-  return notImplemented(
-    "Section 2 (Card Management), Section 9 (Seed Catalog)",
-    "Auth-gate, query card_catalog with optional ?search=, return catalog + rules."
-  );
+export async function GET(req: Request): Promise<Response> {
+  try {
+    requirePrincipal(await getCurrentPrincipal()); // auth required (Section 2)
+    const search = new URL(req.url).searchParams.get("search") ?? undefined;
+    const cards = await browseCatalog(prismaCardRepository, search);
+    return json({ cards });
+  } catch (err) {
+    return errorResponse(err);
+  }
 }

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test 'lib/**/*.test.ts'",
+    "test": "node --experimental-strip-types --test --test-reporter=spec 'lib/**/*.test.ts'",
     "test:engine": "node --experimental-strip-types --test lib/rewards-engine.test.ts",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",

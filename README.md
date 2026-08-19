@@ -27,23 +27,42 @@ are aspirational.
 | OCR routing tests | `lib/ocr/route-receipt.test.ts` | ✅ **9 tests, all passing** |
 | Merchant categorizer | `lib/categorizer/categorizer.ts` | ✅ Implemented |
 | Categorizer tests | `lib/categorizer/categorizer.test.ts` | ✅ **4 tests, all passing** |
+| **Password hashing** (scrypt, node:crypto) | `lib/auth/password.ts` | ✅ Implemented + 6 tests |
+| **Session tokens** (HMAC-SHA256, expiry) | `lib/auth/session.ts` | ✅ Implemented + 6 tests |
+| **Authorization / ownership guards** | `lib/auth/authz.ts` | ✅ Implemented + 5 tests |
+| **User auth service** (signup/login rules) | `lib/auth/user-service.ts` | ✅ Implemented + 5 tests |
+| **Input validation** | `lib/validation.ts` | ✅ Implemented + 8 tests |
+| **Card CRUD service** (ownership-enforced) | `lib/cards/service.ts` | ✅ Implemented + 7 tests |
 
-**Total: 28 tests, 28 passing, 0 failing** — run and confirmed in this
+**Total: 65 tests, 65 passing, 0 failing** — run and confirmed in this
 environment via Node's built-in test runner (`node --experimental-strip-types
 --test`). Reproduce with `npm test` once dependencies are installed, or with
 the raw command in [Running the tests](#running-the-tests) with zero install.
+
+> A real bug was caught by actually running these tests: the scrypt password
+> hash initially exceeded OpenSSL's default 32 MB `maxmem` and threw
+> `ERR_CRYPTO_INVALID_SCRYPT_PARAMS`. Fixed by passing an explicit `maxmem`
+> sized to the scrypt parameters (`lib/auth/password.ts`), then re-verified.
 
 ### 🟡 Scaffolded — written but NOT executed/verified
 
 | Area | Files | Why not verified |
 |---|---|---|
-| Next.js API routes (all of Section 5) | `app/api/**/route.ts` | Return `501 Not Implemented` with a pointer to the governing spec section. No business logic wired yet. |
+| Auth + card API routes | `app/api/auth/**`, `app/api/cards/**`, `app/api/users/me/cards/**` | **Now wired** to the tested cores, but the Prisma/cookie I/O runs only in the Next.js server runtime — not exercised by offline unit tests. The business rules they call ARE tested. |
+| Receipt + dashboard API routes | `app/api/receipts/**`, `app/api/dashboard/**` | Still return `501 Not Implemented` with spec pointers (next build steps). |
+| Prisma adapters | `lib/cards/prisma-repository.ts`, `lib/auth/prisma-user-repository.ts` | Real query-mapping code implementing the tested service ports; require a generated client + live DB (not runnable offline). |
+| Request/session bridge | `lib/auth/current-user.ts` | Cookie + clock wrapper around the tested `session.ts`; needs the Next.js runtime. |
 | Prisma schema | `prisma/schema.prisma` | Never applied to a DB — no Postgres/network here. Not run through `prisma generate`/`migrate`. |
 | Seed script | `prisma/seed.ts` | Never executed — no DB. Reuses `lib/fixtures/cards.ts` as the single source of truth so seed data and tested fixtures can't drift. |
-| Auth service | `lib/auth.ts` | Signatures + contracts only; every function throws "not implemented". |
 | Textract OCR provider | `lib/ocr/textract-provider.ts` | Real `AnalyzeExpense` call is **written but commented out** (no AWS network + SDK not installed). Throws if selected. |
 | Frontend pages | `app/layout.tsx`, `app/page.tsx` | Placeholder shell only. |
 | `package.json` versions | `package.json` | Dependency versions are best-effort pins; **not verified to install/resolve** (no npm access). Adjust as needed. |
+
+**Architecture note:** auth and card CRUD follow a ports-and-adapters split —
+pure, unit-tested business logic (`lib/auth/*-service.ts`, `lib/cards/service.ts`)
+depends only on repository *interfaces*, with Prisma adapters supplying the real
+persistence. This is what let the authorization rules (user A cannot touch user
+B's card → 403) be genuinely tested here against an in-memory fake, with no DB.
 
 ### 🔴 Known honest gaps
 
@@ -97,7 +116,13 @@ With **zero dependencies installed** (as in the build sandbox), using Node ≥ 2
 node --experimental-strip-types --test \
   lib/rewards-engine.test.ts \
   lib/ocr/route-receipt.test.ts \
-  lib/categorizer/categorizer.test.ts
+  lib/categorizer/categorizer.test.ts \
+  lib/auth/password.test.ts \
+  lib/auth/session.test.ts \
+  lib/auth/authz.test.ts \
+  lib/auth/user-service.test.ts \
+  lib/validation.test.ts \
+  lib/cards/service.test.ts
 ```
 
 Or, after `npm install`:
