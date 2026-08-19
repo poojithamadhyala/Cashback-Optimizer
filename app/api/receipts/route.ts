@@ -10,6 +10,7 @@ import { requirePrincipal } from "@/lib/auth/authz";
 import { getCurrentPrincipal } from "@/lib/auth/current-user";
 import { uploadReceipt, listReceipts, type ReceiptStatus } from "@/lib/receipts/service";
 import { buildReceiptDeps } from "@/lib/receipts/deps";
+import { getObjectStorage } from "@/lib/storage";
 
 export async function POST(req: Request): Promise<Response> {
   try {
@@ -20,8 +21,11 @@ export async function POST(req: Request): Promise<Response> {
       return json({ error: "validation", message: "image file required" }, 400);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
-    // TODO: persist bytes to object storage and set a real imageUrl.
-    const imageUrl: string | null = null;
+
+    // Persist the image bytes to object storage (dev: local disk; prod: S3).
+    // Bytes are really written — see lib/storage/local-disk.ts.
+    const stored = await getObjectStorage().put(bytes, file.type);
+    const imageUrl: string | null = stored.url;
 
     const deps = buildReceiptDeps();
     const receipt = await uploadReceipt(deps, principal, bytes, file.type, imageUrl);

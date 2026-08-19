@@ -36,8 +36,10 @@ are aspirational.
 | **Receipt service** (OCR→needs_review→confirm→calc+snapshot) | `lib/receipts/service.ts` | ✅ Implemented + 10 tests |
 | **Dashboard aggregation** (confirmed-only + cheatsheet) | `lib/dashboard/service.ts` | ✅ Implemented + 2 tests |
 | Quarter helper | `lib/receipts/quarter.ts` | ✅ Implemented + 1 test |
+| **Local-disk object storage** (real bytes to disk) | `lib/storage/local-disk.ts` | ✅ Implemented + 4 tests |
+| **SQLite DB integration tests** (real on-disk SQL) | `lib/receipts/sqlite-integration.test.ts` | ✅ **3 tests, all passing** |
 
-**Total: 78 tests, 78 passing, 0 failing** — run and confirmed in this
+**Total: 85 tests, 85 passing, 0 failing** — run and confirmed in this
 environment via Node's built-in test runner (`node --experimental-strip-types
 --test`). Reproduce with `npm test` once dependencies are installed, or with
 the raw command in [Running the tests](#running-the-tests) with zero install.
@@ -67,7 +69,7 @@ Two acceptance criteria from the spec are proven by dedicated tests:
 | Area | Files | Why not verified |
 |---|---|---|
 | Auth + card API routes | `app/api/auth/**`, `app/api/cards/**`, `app/api/users/me/cards/**` | **Now wired** to the tested cores, but the Prisma/cookie I/O runs only in the Next.js server runtime — not exercised by offline unit tests. The business rules they call ARE tested. |
-| Receipt + dashboard API routes | `app/api/receipts/**`, `app/api/dashboard/**` | **Now wired** to the tested receipt/dashboard services (upload/list/get/confirm/delete, summary, cheatsheet). Prisma + storage I/O run only in the Next.js runtime; the business logic they call is unit-tested. Image bytes are read but object-storage persistence is a TODO (`imageUrl` currently null). |
+| Receipt + dashboard API routes | `app/api/receipts/**`, `app/api/dashboard/**` | **Now wired** to the tested receipt/dashboard services (upload/list/get/confirm/delete, summary, cheatsheet). Prisma I/O runs only in the Next.js runtime; the business logic they call is unit-tested. Image bytes are persisted for real via LocalDiskStorage (dev) — see Object storage below. |
 | Receipt/calc/card-rules Prisma adapters | `lib/receipts/prisma-*.ts` | Real query-mapping implementing the tested service ports; need a generated client + live DB. |
 | Prisma adapters | `lib/cards/prisma-repository.ts`, `lib/auth/prisma-user-repository.ts` | Real query-mapping code implementing the tested service ports; require a generated client + live DB (not runnable offline). |
 | Request/session bridge | `lib/auth/current-user.ts` | Cookie + clock wrapper around the tested `session.ts`; needs the Next.js runtime. |
@@ -139,9 +141,56 @@ node --experimental-strip-types --test 'lib/**/*.test.ts'
 Or, after `npm install`:
 
 ```bash
-npm test          # runs the same suite
-npm run typecheck # full tsc once @types/node etc. are present
+npm test               # full lib suite incl. SQLite integration (85 tests)
+npm run test:unit      # pure-logic unit tests only (skips SQLite)
+npm run test:sqlite    # just the real-DB SQLite integration tests
+npm run typecheck      # full tsc once @types/node etc. are present
 ```
+
+## Database integration testing (real SQL, two tiers)
+
+The service layer is unit-tested with in-memory fakes, but the two guarantees
+that are expensive to get wrong — **needs_review exclusion** and **rule-snapshot
+immutability** — are also tested against a **real SQL database**, at two tiers:
+
+1. **SQLite, runs anywhere (incl. this offline sandbox).** Uses Node's built-in
+   `node:sqlite` (zero deps). `lib/receipts/sqlite-repository.ts` implements the
+   same repository ports the service depends on, with a schema mirroring
+   `prisma/schema.prisma`; `lib/receipts/sqlite-integration.test.ts` drives the
+   actual receipt/dashboard services against an on-disk DB file. It proves, with
+   a real SQL `UPDATE card_reward_rules SET rate=5`, that a previously-stored
+   `reward_calculations` row is **byte-for-byte unchanged**. This is SQLite, not
+   Postgres — labeled as such — but it is a genuine database round-trip.
+
+   ```bash
+   node --experimental-sqlite --experimental-strip-types \
+     --test lib/receipts/sqlite-integration.test.ts
+   ```
+
+2. **Postgres via Prisma — the production path, run in CI.** `integration/pg/`
+   contains the equivalent tests against the **actual production adapters**
+   (`lib/receipts/prisma-repository.ts`), run against a real Postgres. These
+   could NOT be executed in the build sandbox (no Postgres, no npm to install
+   `@prisma/client`, no container registry to pull an image — all verified), so
+   they are **honestly marked as not-run-here**. They DO run:
+   - locally: `docker compose up -d db && ./scripts/run-integration.sh`
+   - in CI: `.github/workflows/ci.yml` starts a `postgres:16` service container,
+     applies the schema with `prisma db push`, and runs
+     `integration/pg/*.pgtest.ts` on every push.
+
+## Object storage (receipt images)
+
+`POST /receipts` persists uploaded image bytes for real via a swappable
+`ObjectStorage` interface (`lib/storage/`). v1 ships **`LocalDiskStorage`**,
+which writes to a gitignored `uploads/` dir and returns a `local://<key>`
+reference stored on `receipts.image_url`. Bytes are actually written and read
+back (see `lib/storage/local-disk.test.ts`), not dropped.
+
+> ⚠️ **LocalDiskStorage is dev-only.** Local disk does not survive container
+> restarts, horizontal scaling, or serverless deploys. **Before any real
+> deployment, implement an S3-backed `ObjectStorage`** (same interface) and
+> select it via `STORAGE_PROVIDER=s3`. This is called out in the code and in
+> "Suggested next steps".
 
 ---
 
@@ -175,13 +224,14 @@ Done and tested (steps 1–7):
 
 Remaining:
 
-1. **Object storage for receipt images** — `POST /receipts` reads the bytes but
-   `imageUrl` is currently null; wire S3/local storage.
+1. **Production object storage (S3)** — dev uses `LocalDiskStorage`; implement an
+   `S3Storage` behind the same `ObjectStorage` interface and select via
+   `STORAGE_PROVIDER=s3` before deploying. (Local-disk storage is done + tested.)
 2. **Rotating-category activation state** — `activatedRuleIds` is currently
    empty; source it from a user setting when rotating cards are added.
 3. **Frontend flow (step 8):** auth → card mgmt → upload/review → dashboard
    (only placeholder pages exist today).
-4. **DB-level integration tests** — the service-layer versioning + authorization
-   guarantees are unit-tested with fakes; add a thin set of Prisma-backed
-   integration tests once a test database is available, to confirm the adapters
-   honor the same contracts.
+4. **Run the Postgres integration suite in your environment** — the tests +
+   docker-compose + CI workflow exist (`integration/pg/`, `.github/workflows/ci.yml`);
+   they run in CI on push. The offline sandbox proved the same contracts against
+   real SQLite. (Both tiers of DB integration testing are now in place.)

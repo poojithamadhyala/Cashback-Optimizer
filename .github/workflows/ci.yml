@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests (no DB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci || npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests (pure logic)
+        run: node --experimental-strip-types --test 'lib/**/*.test.ts' 'lib/**/*.spec.ts' --test-skip-pattern='integration'
+      - name: SQLite integration tests (real on-disk DB, no external services)
+        run: node --experimental-sqlite --experimental-strip-types --test lib/receipts/sqlite-integration.test.ts
+
+  integration-postgres:
+    name: Integration tests (real Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: loyalty
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d loyalty"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:dev@localhost:5432/loyalty?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci || npm install
+      - name: Apply Prisma schema to Postgres
+        run: |
+          npx prisma generate
+          npx prisma db push
+      - name: Run Postgres/Prisma integration tests
+        run: node --experimental-strip-types --test integration/pg/*.pgtest.ts
